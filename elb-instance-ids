@@ -1,0 +1,5 @@
+#!/bin/bash
+set -eu
+set -o pipefail
+
+aws elb describe-instance-health --load-balancer-name "$1" | jq -r '.InstanceStates[] | .InstanceId'

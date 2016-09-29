@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+#
+# Take the first service running in a cluster and make a one-off task based on that.
+# If you have multiple services, this is probably not what you want
+#
+#   ./shared/aws/ecs-one-off <cluster-name> -- echo hello ECS
+#
+# Please note that you need to create the excess cluster capacity needed to run your task.
+
+set -u
+set -o errexit
+set -o pipefail
+
+function command_help() {
+  echo "\
+    [ONE_OFF_MEMORY=100] [ONE_OFF_CPU=100] $(basename "$0") CLUSTER [--] command
+  "
+}
+
+function error_msg() {
+  {
+  echo ""
+  echo "ERROR: $*"
+  echo ""
+  } >&2
+}
+
+function exit_msg() {
+  error_msg "$@"
+  command_help >&2
+  exit 1
+}
+
+# make sure the error message gets printed out
+function run() {
+  if response=$("$@"); then
+    echo "$response"
+  else
+    exit_msg "$response"
+  fi
+}
+
+if [[ -z ${1+undefined-guard} ]]; then
+  exit_msg "expected a repo as a first argument"
+fi
+cluster="$1"
+shift
+
+if [[ -z ${1+undefined-guard} ]]; then
+  exit_msg "expected a command as additional arguments"
+fi
+
+if [[ "$1" == "--" ]]; then
+    shift;
+fi
+
+if [[ -z ${1+undefined-guard} ]]; then
+  exit_msg "expected a command as additional arguments"
+fi
+
+command=$(echo "$@" | tr ' ' '\n' \
+    | awk '{print "\""$1"\""}' \
+    | xargs -0 echo \ | egrep -v '^$' \
+    | jq -s "."
+)
+
+AWS_DIR=$(dirname "$0")
+service=$("$AWS_DIR/list-service" "$cluster")
+
+service_td_arn=$(run aws ecs describe-services \
+      --services "$service" --cluster "$cluster" \
+    | jq -r .services[0].taskDefinition)
+service_td=$(aws ecs describe-task-definition --task-definition "$service_td_arn")
+cont_def=$(echo "$service_td" \
+    | jq '.taskDefinition | .containerDefinitions[]')
+volumes=$(echo "$service_td" \
+    | jq '.taskDefinition | .volumes')
+changedDefinition=$(echo "$cont_def" \
+    | jq ".+{command: $command, memoryReservation: 100, cpu: 100}")
+new_td_arn=$(run \
+      aws ecs register-task-definition --family "one-off" \
+          --volumes "$volumes" \
+          --container-definitions "[$changedDefinition]" \
+    | jq -r '.taskDefinition | .taskDefinitionArn'
+    )
+
+response=$(run aws ecs run-task --cluster "$cluster" \
+	--task-definition "$new_td_arn")
+if [[ true == $(echo "$response" | jq '.failures | length > 0') ]]; then
+  exit_msg "$response"
+fi
+echo "$response" \
+    | jq '.tasks | .[] | {taskArn, containerInstanceArn, clusterArn, taskDefinitionArn}'

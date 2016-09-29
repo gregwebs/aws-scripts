@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+
+set -u
+set -o errexit
+set -o pipefail
+
+function command_help() {
+  echo "\
+    $0 REPOSITORY_NAME
+  " >&2
+}
+
+function error_msg() {
+  {
+  echo ""
+  echo "ERROR: $*"
+  echo ""
+  } >&2
+}
+
+function exit_msg() {
+  error_msg "$@"
+  command_help
+  echo "" >&2
+  exit 1
+}
+
+if [[ -z ${1+undefined-guard} ]]; then
+  exit_msg "expected a repo as a first argument"
+fi
+repoName="$1"
+
+AWS_DIR="$( dirname "$0" )"
+ACCOUNT_ID=${AWS_ACCOUNT_ID:-$("$AWS_DIR/get-account-id")}
+
+jqSelector=".repositories[] | select(.registryId==\"$ACCOUNT_ID\") | select(.repositoryName==\"$repoName\")"
+if response=$(aws ecr describe-repositories) ; then
+  echo "$response" | jq "$jqSelector"
+else
+  exit_msg "$response"
+fi
