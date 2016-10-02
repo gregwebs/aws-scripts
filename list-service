@@ -26,12 +26,15 @@ function exit_msg() {
   exit 1
 }
 
-# make sure the error message gets printed out
-function run() {
+# Buffer the output (before piping).
+# This makes sure the error message from the 1st command
+# gets printed before the 2nd command can fail.
+# Also useful when stdout has error information but is normally suppressed.
+function buffer() {
   if response=$("$@"); then
     echo "$response"
   else
-    exit_msg "$response"
+    exit_msg "$*": "$response"
   fi
 }
 
@@ -40,7 +43,7 @@ if [[ -z ${1+undefined-guard} ]]; then
 fi
 cluster="$1"
 
-services=$(run aws ecs list-services --cluster "$cluster" \
+services=$(buffer aws ecs list-services --cluster "$cluster" \
     | jq -r '.serviceArns | .[]'
     )
 serviceCount=$(echo "$services" | wc -l)

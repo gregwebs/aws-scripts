@@ -31,12 +31,15 @@ function exit_msg() {
   exit 1
 }
 
-# make sure the error message gets printed out
-function run() {
+# Buffer the output (before piping).
+# This makes sure the error message from the 1st command
+# gets printed before the 2nd command can fail.
+# Also useful when stdout has error information but is normally suppressed.
+function buffer() {
   if response=$("$@"); then
     echo "$response"
   else
-    exit_msg "$response"
+    exit_msg "$*": "$response"
   fi
 }
 
@@ -67,7 +70,7 @@ command=$(echo "$@" | tr ' ' '\n' \
 AWS_DIR=$(dirname "$0")
 service=$("$AWS_DIR/list-service" "$cluster")
 
-service_td_arn=$(run aws ecs describe-services \
+service_td_arn=$(buffer aws ecs describe-services \
       --services "$service" --cluster "$cluster" \
     | jq -r .services[0].taskDefinition)
 service_td=$(aws ecs describe-task-definition --task-definition "$service_td_arn")
@@ -77,14 +80,14 @@ volumes=$(echo "$service_td" \
     | jq '.taskDefinition | .volumes')
 changedDefinition=$(echo "$cont_def" \
     | jq ".+{command: $command, memoryReservation: 100, cpu: 100}")
-new_td_arn=$(run \
+new_td_arn=$(buffer \
       aws ecs register-task-definition --family "one-off" \
           --volumes "$volumes" \
           --container-definitions "[$changedDefinition]" \
     | jq -r '.taskDefinition | .taskDefinitionArn'
     )
 
-response=$(run aws ecs run-task --cluster "$cluster" \
+response=$(buffer aws ecs run-task --cluster "$cluster" \
 	--task-definition "$new_td_arn")
 if [[ true == $(echo "$response" | jq '.failures | length > 0') ]]; then
   exit_msg "$response"
