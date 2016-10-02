@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+#
+# Assume a cluster has a single service.
+# List out that service or fail if there is not just one.
 
 set -u
 set -o errexit
