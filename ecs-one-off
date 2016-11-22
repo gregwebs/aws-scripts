@@ -61,6 +61,10 @@ if [[ -z ${1+undefined-guard} ]]; then
   exit_msg "expected a command as additional arguments"
 fi
 
+AWS=${AWS_COMMAND:-aws}
+AWS_COMMAND="$AWS"
+export AWS_COMMAND
+
 command=$(echo "$@" | tr ' ' '\n' \
     | awk '{print "\""$1"\""}' \
     | xargs -0 echo \ | egrep -v '^$' \
@@ -70,10 +74,10 @@ command=$(echo "$@" | tr ' ' '\n' \
 AWS_DIR=$(dirname "$0")
 service=$("$AWS_DIR/list-service" "$cluster")
 
-service_td_arn=$(buffer aws ecs describe-services \
+service_td_arn=$(buffer $AWS ecs describe-services \
       --services "$service" --cluster "$cluster" \
     | jq -r .services[0].taskDefinition)
-service_td=$(aws ecs describe-task-definition --task-definition "$service_td_arn")
+service_td=$($AWS ecs describe-task-definition --task-definition "$service_td_arn")
 cont_def=$(echo "$service_td" \
     | jq '.taskDefinition | .containerDefinitions[]')
 volumes=$(echo "$service_td" \
@@ -81,13 +85,13 @@ volumes=$(echo "$service_td" \
 changedDefinition=$(echo "$cont_def" \
     | jq ".+{command: $command, memoryReservation: 100, cpu: 100}")
 new_td_arn=$(buffer \
-      aws ecs register-task-definition --family "one-off" \
+      $AWS ecs register-task-definition --family "one-off" \
           --volumes "$volumes" \
           --container-definitions "[$changedDefinition]" \
     | jq -r '.taskDefinition | .taskDefinitionArn'
     )
 
-response=$(buffer aws ecs run-task --cluster "$cluster" \
+response=$(buffer $AWS ecs run-task --cluster "$cluster" \
 	--task-definition "$new_td_arn")
 if [[ true == $(echo "$response" | jq '.failures | length > 0') ]]; then
   exit_msg "$response"

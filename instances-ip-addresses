@@ -2,5 +2,7 @@
 set -eu
 set -o pipefail
 
-aws ec2 describe-instances --instance-ids "$@" \
+AWS=${AWS_COMMAND:-aws}
+
+$AWS ec2 describe-instances --instance-ids "$@" \
     | jq -r '.Reservations | .[] | .Instances | .[] | .PrivateIpAddress'

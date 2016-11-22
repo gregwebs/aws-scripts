@@ -46,7 +46,11 @@ if [[ -z ${1+undefined-guard} ]]; then
 fi
 cluster="$1"
 
-services=$(buffer aws ecs list-services --cluster "$cluster" \
+AWS=${AWS_COMMAND:-aws}
+AWS_COMMAND="$AWS"
+export AWS_COMMAND
+
+services=$(buffer $AWS ecs list-services --cluster "$cluster" \
     | jq -r '.serviceArns | .[]'
     )
 serviceCount=$(echo "$services" | wc -l)
