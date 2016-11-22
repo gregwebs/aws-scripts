@@ -4,4 +4,5 @@ set -u
 set -o errexit
 set -o pipefail
 
-exec aws iam get-user | jq '.User.Arn' | sed -e 's/^.*:://' -e 's/:.*$//'
+AWS=${AWS_COMMAND:-aws}
+exec $AWS iam get-user | jq '.User.Arn' | sed -e 's/^.*:://' -e 's/:.*$//'

@@ -2,5 +2,7 @@
 set -eu
 set -o pipefail
 
-aws autoscaling describe-auto-scaling-groups --auto-scaling-group-name "$1" \
+AWS=${AWS_COMMAND:-aws}
+
+$AWS autoscaling describe-auto-scaling-groups --auto-scaling-group-name "$1" \
   | jq -r '.AutoScalingGroups | .[] | .Instances | .[] | .InstanceId'

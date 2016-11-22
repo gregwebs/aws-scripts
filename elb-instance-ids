@@ -2,4 +2,6 @@
 set -eu
 set -o pipefail
 
-aws elb describe-instance-health --load-balancer-name "$1" | jq -r '.InstanceStates[] | .InstanceId'
+AWS=${AWS_COMMAND:-aws}
+
+$AWS elb describe-instance-health --load-balancer-name "$1" | jq -r '.InstanceStates[] | .InstanceId'
