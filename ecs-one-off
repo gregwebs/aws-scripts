@@ -13,7 +13,7 @@ set -o pipefail
 
 function command_help() {
   echo "\
-    [ONE_OFF_MEMORY=100] [ONE_OFF_CPU=100] $(basename "$0") CLUSTER [--] command
+    [ONE_OFF_MEMORY=100] [ONE_OFF_CPU=100] [TD_ARN=] $(basename "$0") CLUSTER [--] command
   "
 }
 
@@ -77,7 +77,8 @@ service=$("$AWS_DIR/list-service" "$cluster")
 service_td_arn=$(buffer $AWS ecs describe-services \
       --services "$service" --cluster "$cluster" \
     | jq -r .services[0].taskDefinition)
-service_td=$($AWS ecs describe-task-definition --task-definition "$service_td_arn")
+td_arn="${TD_ARN:-"$service_td_arn"}"
+service_td=$($AWS ecs describe-task-definition --task-definition "$td_arn")
 cont_def=$(echo "$service_td" \
     | jq '.taskDefinition | .containerDefinitions[]')
 volumes=$(echo "$service_td" \
