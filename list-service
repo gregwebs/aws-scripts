@@ -53,7 +53,7 @@ export AWS_COMMAND
 services=$(buffer $AWS ecs list-services --cluster "$cluster" \
     | jq -r '.serviceArns | .[]'
     )
-serviceCount=$(echo "$services" | wc -l)
+serviceCount=$(echo "$services" | wc -l | awk '{print $1}')
 if [[ $serviceCount == 1 ]]; then
     echo "$services" | sed 's/.*\///'
 else
