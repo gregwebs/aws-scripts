@@ -80,7 +80,7 @@ service_td_arn=$(buffer $AWS ecs describe-services \
 td_arn="${TD_ARN:-"$service_td_arn"}"
 service_td=$($AWS ecs describe-task-definition --task-definition "$td_arn")
 cont_def=$(echo "$service_td" \
-    | jq '.taskDefinition | .containerDefinitions[]')
+    | jq '.taskDefinition | .containerDefinitions[] | del(.portMappings)')
 volumes=$(echo "$service_td" \
     | jq '.taskDefinition | .volumes')
 changedDefinition=$(echo "$cont_def" \
