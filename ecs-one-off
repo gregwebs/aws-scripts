@@ -13,7 +13,7 @@ set -o pipefail
 
 function command_help() {
   echo "\
-    [ONE_OFF_MEMORY=100] [ONE_OFF_CPU=100] [TD_ARN=] $(basename "$0") CLUSTER [--] command
+    [ONE_OFF_MEMORY=100] [ONE_OFF_CPU=100] [ONE_OFF_TD_ARN=] $(basename "$0") CLUSTER [--] command
   "
 }
 
@@ -77,14 +77,18 @@ service=$("$AWS_DIR/list-service" "$cluster")
 service_td_arn=$(buffer $AWS ecs describe-services \
       --services "$service" --cluster "$cluster" \
     | jq -r .services[0].taskDefinition)
-td_arn="${TD_ARN:-"$service_td_arn"}"
+td_arn="${ONE_OFF_TD_ARN:-"$service_td_arn"}"
 service_td=$($AWS ecs describe-task-definition --task-definition "$td_arn")
-cont_def=$(echo "$service_td" \
+cont_def=$(echo -n "$service_td" \
     | jq '.taskDefinition | .containerDefinitions[] | del(.portMappings)')
-volumes=$(echo "$service_td" \
+volumes=$(echo -n "$service_td" \
     | jq '.taskDefinition | .volumes')
+memory=${ONE_OFF_MEMORY:-100}
+cpu=${ONE_OFF_CPU:-100}
+previous_image=$(echo -n "$cont_def" | jq -r '.image')
+image=$(echo -n "${ONE_OFF_IMAGE:-"$previous_image"}" | jq -s -R .)
 changedDefinition=$(echo "$cont_def" \
-    | jq ".+{command: $command, memoryReservation: 100, cpu: 100}")
+    | jq ".+{command: $command, image: $image, memoryReservation: $memory, cpu: $cpu}")
 new_td_arn=$(buffer \
       $AWS ecs register-task-definition --family "one-off" \
           --volumes "$volumes" \
@@ -97,5 +101,5 @@ response=$(buffer $AWS ecs run-task --cluster "$cluster" \
 if [[ true == $(echo "$response" | jq '.failures | length > 0') ]]; then
   exit_msg "$response"
 fi
-echo "$response" \
+echo -n "$response" \
     | jq '.tasks | .[] | {taskArn, containerInstanceArn, clusterArn, taskDefinitionArn}'
