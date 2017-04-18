@@ -1,0 +1,127 @@
+#!/usr/bin/env bash
+
+set -u
+set -o errexit
+set -o pipefail
+
+function command_help() {
+  echo "\
+    IMAGE_PREFIX= $0 [-h|--help] [--overwrite] [--no-squash] IMAGE:TAG
+  "
+}
+
+function error_msg() {
+  echo ""
+  echo "ERROR: $*"
+  echo ""
+}
+
+function exit_msg() {
+  error_msg "$@"
+  command_help
+  echo ""
+  exit 1
+}
+
+OVERWRITE=false
+SQUASH=false
+while test $# -gt 0; do
+    case "$1" in
+        -h|--help)
+            command_help
+            ;;
+        --overwrite)
+            shift
+            OVERWRITE=true
+            ;;
+        --squash)
+            shift
+            SQUASH=true
+            ;;
+        --no-squash)
+            shift
+            SQUASH=false
+            ;;
+        *)
+            break
+            ;;
+    esac
+done
+
+
+if [[ -z "${1+undefined-guard}" ]] ; then
+  exit_msg "expected an image"
+fi
+IMAGE_ARG="$1"
+FIRST_ARG_ERROR="Expected Docker IMAGE:TAG as a first argument."
+shift || exit_msg "$FIRST_ARG_ERROR"
+if [[ -z "$IMAGE_ARG" ]]; then
+  exit_msg "$FIRST_ARG_ERROR"
+fi
+
+if echo "$IMAGE_ARG" | grep -v ':' ; then
+  exit_msg "please give an image tag (perhaps the latest tag). Gave: $IMAGE_ARG"
+fi
+IMAGE=$(echo "$IMAGE_ARG" | sed 's/:.*$//')
+
+IMAGE_TAG=$(echo "$IMAGE_ARG" | sed 's/^.*://')
+if [[ ! -z ${IMAGE_PREFIX+undefined-guard} ]] ; then
+  PREFIXED_IMAGE="$IMAGE_PREFIX/$(echo "$IMAGE" | sed "s/^${IMAGE_PREFIX}\///")"
+else
+  if echo "$IMAGE_ARG" | grep -v '/' ; then
+    exit_msg "please set IMAGE_PREFIX or include a repository prefix in the image name. Gave: $IMAGE_PREFIX/$IMAGE_ARG"
+  else
+    PREFIXED_IMAGE="$IMAGE_TAG"
+  fi
+fi
+
+if [[ -z "$IMAGE_TAG" ]]; then
+  exit_msg "Expected a tag to be given with the image $IMAGE_ARG."
+fi
+
+AWS_DEFAULT_REGION="${AWS_DEFAULT_REGION:-us-east-1}"
+
+# Log in to the docker registry
+aws ecr get-login --region $AWS_DEFAULT_REGION | sed 's/\s$//'
+COMMAND=$(aws ecr get-login --region $AWS_DEFAULT_REGION | sed 's/\s$//')
+echo "Logging in to ECR."
+$COMMAND
+
+SHARED="$( dirname "$0" )"
+
+ACCOUNT_ID=$("$SHARED/get-account-id")
+export AWS_ACCOUNT_ID="$ACCOUNT_ID"
+
+repo=$("$SHARED/find-repository" "$PREFIXED_IMAGE")
+if [[ ! -z $repo ]]; then
+  found_image=$("$SHARED/find-image" "$PREFIXED_IMAGE" "$IMAGE_TAG")
+  if [[ ! -z $found_image ]] ; then
+    if [ "$OVERWRITE" = true ] ; then
+      echo "Already exists: $IMAGE_TAG. Overwriting due to the --overwrite flag."
+    else
+      error_msg "$found_image"
+      exit_msg "Already exists: $IMAGE_TAG. Add the --overwrite argument to overwrite the image."
+    fi
+  fi
+else
+  echo "Did not find existing repository, creating one for $PREFIXED_IMAGE."
+  aws ecr create-repository --repository-name "$PREFIXED_IMAGE"
+fi
+
+FULL_IMAGE="$ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$PREFIXED_IMAGE:$IMAGE_TAG"
+echo docker tag "$IMAGE:$IMAGE_TAG" "$FULL_IMAGE"
+
+if [ "$SQUASH" = true ] ; then
+  if ! which docker-squash ; then
+    echo ""
+    echo "https://github.com/jwilder/docker-squash/releases"
+    exit_msg "install docker-squash and make sure it is in your \$PATH"
+  fi
+  docker save "$IMAGE:$IMAGE_TAG" | sudo "$(which docker-squash)" --verbose -t "$FULL_IMAGE" | docker load
+else
+  docker tag "$IMAGE:$IMAGE_TAG" "$FULL_IMAGE"
+fi
+
+docker push "$FULL_IMAGE"
+
+echo "Pushed $IMAGE:$IMAGE_TAG to Amazon ECR as $FULL_IMAGE."
