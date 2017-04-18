@@ -4,5 +4,36 @@ set -u
 set -o errexit
 set -o pipefail
 
-AWS=${AWS_COMMAND:-aws}
-exec $AWS iam get-user | jq '.User.Arn' | sed -e 's/^.*:://' -e 's/:.*$//'
+function command_help() {
+  echo "\
+    $(basename "$0")
+  "
+}
+
+function error_msg() {
+  {
+  echo ""
+  echo "ERROR: $*"
+  echo ""
+  } >&2
+}
+
+function exit_msg() {
+  error_msg "$@"
+  command_help >&2
+  exit 1
+}
+
+# Buffer the output (before piping).
+# This makes sure the error message from the 1st command
+# gets printed before the 2nd command can fail.
+# Also useful when stdout has error information but is normally suppressed.
+function buffer() {
+  if response=$("$@"); then
+    echo "$response"
+  else
+    exit_msg "$*": "$response"
+  fi
+}
+
+buffer aws sts get-caller-identity | jq -r '.Account'
