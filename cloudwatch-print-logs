@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+
+set -u
+set -o errexit
+set -o pipefail
+
+LOG_GROUP=
+LOG_STREAM_PREFIX=
+
+function command_help() {
+  echo "\
+    $(basename "$0") LOG_GROUP LOG_STREAM_PREFIX
+  "
+}
+
+function error_msg() {
+  {
+  echo ""
+  echo "ERROR: $*"
+  echo ""
+  } >&2
+}
+
+function exit_msg() {
+  error_msg "$@"
+  command_help >&2
+  exit 1
+}
+
+# Buffer the output (before piping).
+# This makes sure the error message from the 1st command
+# gets printed before the 2nd command can fail.
+# Also useful when stdout has error information but is normally suppressed.
+function buffer() {
+  if response=$("$@"); then
+    echo "$response"
+  else
+    exit_msg "$*": "$response"
+  fi
+}
+
+if [[ -z ${1+undefined-guard} ]]; then
+  exit_msg "expected a LOG GROUP as a first argument"
+fi
+LOG_GROUP="$1"
+shift
+
+if [[ -z ${1+undefined-guard} ]]; then
+  exit_msg "expected a LOG STREAM PREFIX as a second argument"
+fi
+LOG_STREAM_PREFIX="$1"
+
+log_stream_name=
+ while [ -z "$log_stream_name" ]; do
+    streams=$(aws logs describe-log-streams --log-group-name "$LOG_GROUP" --log-stream-name-prefix $LOG_STREAM_PREFIX)
+    log_stream_name=$(echo "$streams" | jq -r '.logStreams[] | .logStreamName')
+    sleep 5
+done
+echo "found $log_stream_name"
+
+aws logs filter-log-events --page-size 10000 --log-group-name "$LOG_GROUP" --log-stream-names "$log_stream_name" \
+    | jq -r '.events[] | .message' | jq -r '.message' | sed 's/^\s*//' | sed 's/\s*$//'
