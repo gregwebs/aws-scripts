@@ -51,7 +51,7 @@ fi
 repo="$1"
 image_tag="$2"
 
-buffer aws ecr list-images --no-paginate \
+buffer aws ecr list-images \
     --repository-name "$repo" \
     --filter tagStatus=TAGGED \
   | jq -r ".imageIds[] | select(.imageTag==\"$image_tag\")"
