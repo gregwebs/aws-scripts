@@ -27,9 +27,6 @@ function exit_msg() {
   exit 1
 }
 
-AWS=${AWS_COMMAND:-aws}
-AWS_COMMAND="$AWS"
-export AWS_COMMAND
 
 # Buffer the output (before piping).
 # This makes sure the error message from the 1st command
@@ -54,7 +51,7 @@ fi
 repo="$1"
 image_tag="$2"
 
-buffer $AWS ecr list-images --no-paginate \
+buffer aws ecr list-images --no-paginate \
     --repository-name "$repo" \
     --filter tagStatus=TAGGED \
   | jq -r ".imageIds[] | select(.imageTag==\"$image_tag\")"
