@@ -95,6 +95,10 @@ if [[ -z "$NO_COMMAND" ]]; then
         | xargs -0 echo \ | egrep -v '^$' \
         | jq -s "."
     )
+else
+    if [[ ! -z ${1+undefined-guard} ]]; then
+      exit_msg "did not expect a command with --no-command"
+    fi
 fi
 
 AWS_DIR=$(dirname "$0")
@@ -109,7 +113,6 @@ service_td=$(aws ecs describe-task-definition --task-definition "$td_arn")
 # implicitly assume there is just one container definition
 cont_def=$(echo -n "$service_td" \
     | jq '.taskDefinition | .containerDefinitions[] | del(.portMappings)')
-echo "$cont_def"
 old_env=$(echo -n "$cont_def" \
     | jq '.environment' | jq .[])
 
