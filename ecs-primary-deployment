@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+set -u
+set -o errexit
+set -o pipefail
+
+function command_help {
+  echo "\
+    $(basename "$0") CLUSTER SERVICE
+  "
+}
+
+function error_msg() {
+  {
+  echo ""
+  echo "ERROR: $*"
+  echo ""
+  } >&2
+}
+
+function exit_msg() {
+  error_msg "$@"
+  command_help >&2
+  exit 1
+}
+
+
+if [[ -z ${1+undefined-guard} ]]; then
+  exit_msg "expected a cluster"
+fi
+cluster="$1"
+shift
+
+if [[ -z ${1+undefined-guard} ]]; then
+  exit_msg "expected a service"
+fi
+service="$1"
+shift
+
+aws ecs describe-services --cluster "$cluster" --service "$service" \
+    | jq '.services[0].deployments[] | select(.status == "PRIMARY")'
