@@ -9,7 +9,7 @@ LOG_STREAM_PREFIX=
 
 function command_help() {
   echo "\
-    $(basename "$0") LOG_GROUP LOG_STREAM_PREFIX
+    PAGE_SIZE=10000 $(basename "$0") LOG_GROUP LOG_STREAM_PREFIX
   "
 }
 
@@ -50,13 +50,19 @@ if [[ -z ${1+undefined-guard} ]]; then
 fi
 LOG_STREAM_PREFIX="$1"
 
-log_stream_name=
- while [ -z "$log_stream_name" ]; do
-    streams=$(aws logs describe-log-streams --log-group-name "$LOG_GROUP" --log-stream-name-prefix $LOG_STREAM_PREFIX)
-    log_stream_name=$(echo "$streams" | jq -r '.logStreams[] | .logStreamName')
-    sleep 5
-done
-echo "found $log_stream_name"
+log_stream_name="${LOG_STREAM_NAME:-}"
+{
+     while [ -z "$log_stream_name" ]; do
+        streams=$(aws logs describe-log-streams --log-group-name "$LOG_GROUP" \
+            --log-stream-name-prefix "$LOG_STREAM_PREFIX")
+        if ! log_stream_name=$(echo "$streams" | jq -r '.logStreams[] | .logStreamName') ; then
+            echo "looking for $LOG_STREAM_PREFIX"
+            sleep 5
+        fi
+    done
 
-aws logs filter-log-events --page-size 10000 --log-group-name "$LOG_GROUP" --log-stream-names "$log_stream_name" \
+    echo "found $log_stream_name"
+} >&2
+
+aws logs get-log-events --log-group-name "$LOG_GROUP" --log-stream-name "$log_stream_name" \
     | jq -r '.events[] | .message' | jq -r '.message' | sed 's/^\s*//' | sed 's/\s*$//'
