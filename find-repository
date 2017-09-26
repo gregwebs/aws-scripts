@@ -30,15 +30,15 @@ if [[ -z ${1+undefined-guard} ]]; then
 fi
 repoName="$1"
 
-AWS=${AWS_COMMAND:-aws}
-AWS_COMMAND="$AWS"
-export AWS_COMMAND
+AWS_DEFAULT_REGION="${AWS_DEFAULT_REGION:-us-east-1}"
+export AWS_ARGS="${AWS_ARGS:-"--output json --region $AWS_DEFAULT_REGION"}"
+function AWS_COMMAND() { aws "$@" $AWS_ARGS ; }
 
 AWS_DIR="$( dirname "$0" )"
 ACCOUNT_ID=${AWS_ACCOUNT_ID:-$("$AWS_DIR/get-account-id")}
 
 jqSelector=".repositories[] | select(.registryId==\"$ACCOUNT_ID\") | select(.repositoryName==\"$repoName\")"
-if response=$($AWS ecr describe-repositories) ; then
+if response=$(AWS_COMMAND ecr describe-repositories) ; then
   echo "$response" | jq "$jqSelector"
 else
   exit_msg "$response"

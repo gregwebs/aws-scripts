@@ -27,6 +27,9 @@ function exit_msg() {
   exit 1
 }
 
+AWS_DEFAULT_REGION="${AWS_DEFAULT_REGION:-us-east-1}"
+export AWS_ARGS="${AWS_ARGS:-"--output json --region $AWS_DEFAULT_REGION"}"
+function AWS_COMMAND() { aws "$@" $AWS_ARGS ; }
 
 # Buffer the output (before piping).
 # This makes sure the error message from the 1st command
@@ -51,7 +54,7 @@ fi
 repo="$1"
 image_tag="$2"
 
-buffer aws ecr list-images \
+buffer AWS_COMMAND ecr list-images \
     --repository-name "$repo" \
     --filter tagStatus=TAGGED \
   | jq -r ".imageIds[] | select(.imageTag==\"$image_tag\")"

@@ -50,12 +50,16 @@ if [[ -z ${1+undefined-guard} ]]; then
 fi
 LOG_STREAM_PREFIX="$1"
 
+AWS_DEFAULT_REGION="${AWS_DEFAULT_REGION:-us-east-1}"
+export AWS_ARGS="${AWS_ARGS:-"--output json --region $AWS_DEFAULT_REGION"}"
+function AWS_COMMAND() { aws "$@" $AWS_ARGS ; }
+
 log_stream_name="${LOG_STREAM_NAME:-}"
 {
      while [ -z "$log_stream_name" ]; do
-        streams=$(aws logs describe-log-streams --log-group-name "$LOG_GROUP" \
+        streams=$(AWS_COMMAND logs describe-log-streams --log-group-name "$LOG_GROUP" \
             --log-stream-name-prefix "$LOG_STREAM_PREFIX")
-        if ! log_stream_name=$(echo "$streams" | jq -r '.logStreams[] | .logStreamName') ; then
+        if ! log_stream_name=$(echo "$streams" | jq -r '[.logStreams[] | {logStreamName, lastEventTimestamp}] | sort_by(.lastEventTimestamp) | .[-1] | .logStreamName') ; then
             echo "looking for $LOG_STREAM_PREFIX"
             sleep 5
         fi
@@ -64,5 +68,5 @@ log_stream_name="${LOG_STREAM_NAME:-}"
     echo "found $log_stream_name"
 } >&2
 
-aws logs get-log-events --log-group-name "$LOG_GROUP" --log-stream-name "$log_stream_name" \
+AWS_COMMAND logs get-log-events --log-group-name "$LOG_GROUP" --log-stream-name "$log_stream_name" \
     | jq -r '.events[] | .message' | jq -r '.message' | sed 's/^\s*//' | sed 's/\s*$//'

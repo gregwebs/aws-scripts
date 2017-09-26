@@ -46,11 +46,11 @@ if [[ -z ${1+undefined-guard} ]]; then
 fi
 cluster="$1"
 
-AWS=${AWS_COMMAND:-aws}
-AWS_COMMAND="$AWS"
-export AWS_COMMAND
+AWS_DEFAULT_REGION="${AWS_DEFAULT_REGION:-us-east-1}"
+export AWS_ARGS="${AWS_ARGS:-"--output json --region $AWS_DEFAULT_REGION"}"
+function AWS_COMMAND() { aws "$@" $AWS_ARGS ; }
 
-services=$(buffer $AWS ecs list-services --cluster "$cluster" \
+services=$(buffer AWS_COMMAND ecs list-services --cluster "$cluster" \
     | jq -r '.serviceArns | .[]'
     )
 serviceCount=$(echo "$services" | wc -l | awk '{print $1}')

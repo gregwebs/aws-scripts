@@ -80,10 +80,13 @@ if [[ -z "$IMAGE_TAG" ]]; then
 fi
 
 AWS_DEFAULT_REGION="${AWS_DEFAULT_REGION:-us-east-1}"
+export AWS_ARGS="${AWS_ARGS:-"--output json --region $AWS_DEFAULT_REGION"}"
+function AWS_COMMAND() { aws "$@" $AWS_ARGS ; }
+
 
 # Log in to the docker registry
-if ! COMMAND=$(aws ecr get-login --no-include-email --region $AWS_DEFAULT_REGION | sed 's/\s$//') ; then
-  COMMAND=$(aws ecr get-login --region $AWS_DEFAULT_REGION | sed 's/\s$//')
+if ! COMMAND=$(AWS_COMMAND ecr get-login --no-include-email | sed 's/\s$//') ; then
+  COMMAND=$(AWS_COMMAND ecr get-login | sed 's/\s$//')
 fi
 echo "Logging in to ECR."
 $COMMAND

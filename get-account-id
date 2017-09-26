@@ -36,4 +36,8 @@ function buffer() {
   fi
 }
 
-buffer aws sts get-caller-identity | jq -r '.Account'
+AWS_DEFAULT_REGION="${AWS_DEFAULT_REGION:-us-east-1}"
+export AWS_ARGS="${AWS_ARGS:-"--output json --region $AWS_DEFAULT_REGION"}"
+function AWS_COMMAND() { aws "$@" $AWS_ARGS ; }
+
+buffer AWS_COMMAND sts get-caller-identity | jq -r '.Account'
