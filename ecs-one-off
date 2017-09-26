@@ -104,11 +104,15 @@ fi
 AWS_DIR=$(dirname "$0")
 service=$("$AWS_DIR/list-service" "$cluster")
 
-service_td_arn=$(buffer aws ecs describe-services \
+AWS_DEFAULT_REGION="${AWS_DEFAULT_REGION:-us-east-1}"
+export AWS_ARGS="${AWS_ARGS:-"--output json --region $AWS_DEFAULT_REGION"}"
+function AWS_COMMAND() { aws "$@" $AWS_ARGS ; }
+
+service_td_arn=$(buffer AWS_COMMAND ecs describe-services \
       --services "$service" --cluster "$cluster" \
     | jq -r .services[0].taskDefinition)
 td_arn="${ONE_OFF_TD_ARN:-"$service_td_arn"}"
-service_td=$(aws ecs describe-task-definition --task-definition "$td_arn")
+service_td=$(AWS_COMMAND ecs describe-task-definition --task-definition "$td_arn")
 
 # implicitly assume there is just one container definition
 cont_def=$(echo -n "$service_td" \
@@ -146,13 +150,13 @@ volumes=$(echo -n "$service_td" \
     | jq '.taskDefinition | .volumes')
 
 new_td_arn=$(buffer \
-      aws ecs register-task-definition --family "one-off" \
+      AWS_COMMAND ecs register-task-definition --family "one-off" \
           --volumes "$volumes" \
           --container-definitions "[$changedDefinition]" \
     | jq -r '.taskDefinition | .taskDefinitionArn'
     )
 
-response=$(buffer aws ecs run-task --cluster "$cluster" \
+response=$(buffer AWS_COMMAND ecs run-task --cluster "$cluster" \
 	--task-definition "$new_td_arn")
 if [[ true == $(echo "$response" | jq '.failures | length > 0') ]]; then
   exit_msg "$new_td_arn $response"
