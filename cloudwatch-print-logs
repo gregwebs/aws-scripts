@@ -56,11 +56,15 @@ function AWS_COMMAND() { aws "$@" $AWS_ARGS ; }
 
 log_stream_name="${LOG_STREAM_NAME:-}"
 {
-     while [ -z "$log_stream_name" ]; do
+     while [[ -z "$log_stream_name" ]]; do
         streams=$(AWS_COMMAND logs describe-log-streams --log-group-name "$LOG_GROUP" \
             --log-stream-name-prefix "$LOG_STREAM_PREFIX")
-        if ! log_stream_name=$(echo "$streams" | jq -r '[.logStreams[] | {logStreamName, lastEventTimestamp}] | sort_by(.lastEventTimestamp) | .[-1] | .logStreamName') ; then
-            echo "looking for $LOG_STREAM_PREFIX"
+        log_stream_name=$(echo "$streams" | \
+                jq -r '[.logStreams[] | {logStreamName, lastEventTimestamp}] | sort_by(.lastEventTimestamp) | .[] | .logStreamName' | \
+                tail -1)
+
+        if [[ -z "$log_stream_name" ]]; then
+            echo "looking for $LOG_GROUP $LOG_STREAM_PREFIX"
             sleep 5
         fi
     done
