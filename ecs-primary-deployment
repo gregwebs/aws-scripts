@@ -40,5 +40,8 @@ AWS_DEFAULT_REGION="${AWS_DEFAULT_REGION:-us-east-1}"
 export AWS_ARGS="${AWS_ARGS:-"--output json --region $AWS_DEFAULT_REGION"}"
 function AWS_COMMAND() { aws "$@" $AWS_ARGS ; }
 
-AWS_COMMAND ecs describe-services --cluster "$cluster" --service "$service" \
-    | jq '.services[0].deployments[] | select(.status == "PRIMARY")'
+result=$(AWS_COMMAND ecs describe-services --cluster "$cluster" --service "$service")
+if [[ -z "$result" ]] || [[ ! -z "$(echo "$result" | jq '.failures[]')" ]] ; then
+  exit_msg "deployment not found"
+fi
+echo "$result" | jq '.services[0].deployments[] | select(.status == "PRIMARY")'
