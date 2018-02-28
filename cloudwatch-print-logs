@@ -72,5 +72,9 @@ log_stream_name="${LOG_STREAM_NAME:-}"
     echo "found $log_stream_name"
 } >&2
 
-AWS_COMMAND logs get-log-events --log-group-name "$LOG_GROUP" --log-stream-name "$log_stream_name" \
+function get_log(){
+  AWS_COMMAND logs get-log-events --log-group-name "$LOG_GROUP" --log-stream-name "$log_stream_name" \
     | jq -r '.events[] | .message' | jq -r '.message' | sed 's/^\s*//' | sed 's/\s*$//'
+}
+
+get_log || (echo "waiting for log to show up" >&2 && sleep 10 && get_log)
