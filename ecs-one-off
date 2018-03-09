@@ -55,6 +55,7 @@ fi
 
 ENVIRONMENT=""
 NO_COMMAND=""
+ENTRY_POINT=""
 
 while test $# -gt 0; do
   case "$1" in
@@ -68,11 +69,22 @@ while test $# -gt 0; do
              ;;
           -e|--environment)
              shift
+             if [[ -z ${1+undefined-guard} ]]; then
+               exit_msg "expected a environment argument"
+             fi
              ENVIRONMENT="$ENVIRONMENT $1"
              shift
              ;;
           --no-command)
              NO_COMMAND=true
+             shift
+             ;;
+          --entrypoint)
+             shift
+             if [[ -z ${1+undefined-guard} ]]; then
+               exit_msg "expected a entry point argument"
+             fi
+             ENTRY_POINT="$(echo -n "$1" | jq -R -s -c '[.]')"
              shift
              ;;
           -*|--*)
@@ -140,6 +152,10 @@ changedDefinition=$(echo "$cont_def" \
 if [[ -z "$NO_COMMAND" ]]; then
     changedDefinition=$(echo "$changedDefinition" \
         | jq ".+{command: $command}")
+fi
+if [[ ! -z "$ENTRY_POINT" ]]; then
+    changedDefinition=$(echo "$changedDefinition" \
+        | jq ".+{entryPoint: $ENTRY_POINT}")
 fi
 if [[ ! -z "$ENVIRONMENT" ]]; then
     changedDefinition=$(echo "$changedDefinition" \
